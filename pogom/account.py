@@ -14,7 +14,7 @@ from .fakePogoApi import FakePogoApi
 from .pgoapiwrapper import PGoApiWrapper
 from .utils import in_radius, generate_device_info, distance
 from .proxy import get_new_proxy
-from .apiRequests import (send_generic_request, fort_details,
+from .apiRequests import (send_generic_request, fort_details, call_req,
                           recycle_inventory_item, use_item_egg_incubator,
                           release_pokemon, level_up_rewards, fort_search)
 
@@ -71,8 +71,9 @@ def setup_api(args, status, account):
 # Use API to check the login status, and retry the login if possible.
 def check_login(args, account, api, proxy_url):
     # Logged in? Enough time left? Cool!
-    if api._auth_provider and api._auth_provider._access_token:
-        remaining_time = api._auth_provider._access_token_expiry - time.time()
+    if api.get_auth_provider() and api.get_auth_provider()._access_token:
+        remaining_time = (
+            api.get_auth_provider()._access_token_expiry - time.time())
 
         if remaining_time > 60:
             log.debug(
@@ -130,7 +131,7 @@ def rpc_login_sequence(args, api, account):
 
     try:
         req = api.create_request()
-        req.call(False)
+        call_req(req)
 
         total_req += 1
         time.sleep(random.uniform(.43, .97))
@@ -149,7 +150,7 @@ def rpc_login_sequence(args, api, account):
     try:
         req = api.create_request()
         req.get_player(player_locale=args.player_locale)
-        resp = req.call(False)
+        resp = call_req(req)
         parse_get_player(account, resp)
 
         total_req += 1
@@ -299,7 +300,7 @@ def rpc_login_sequence(args, api, account):
     try:  # 7 - Make an empty request to retrieve store items.
         req = api.create_request()
         req.get_store_items()
-        req.call(False)
+        call_req(req)
 
         total_req += 1
         time.sleep(random.uniform(.6, 1.1))

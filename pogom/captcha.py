@@ -34,8 +34,7 @@ from .utils import now
 log = logging.getLogger(__name__)
 
 
-def captcha_overseer_thread(args, account_queue, account_captchas,
-                            key_scheduler, wh_queue):
+def captcha_overseer_thread(args, account_queue, account_captchas, wh_queue):
     solverId = 0
     while True:
         # Run once every 15 seconds.
@@ -49,14 +48,10 @@ def captcha_overseer_thread(args, account_queue, account_captchas,
             log.debug('Captcha overseer running. Captchas: %d - Tokens: %d',
                       tokens_needed, tokens_available)
             for i in range(0, solvers):
-                hash_key = None
-                if args.hash_key:
-                    hash_key = key_scheduler.next()
-
                 t = Thread(target=captcha_solver_thread,
                            name='captcha-solver-{}'.format(solverId),
                            args=(args, account_queue, account_captchas,
-                                 hash_key, wh_queue, tokens[i]))
+                                 wh_queue, tokens[i]))
                 t.daemon = True
                 t.start()
 
@@ -84,13 +79,11 @@ def captcha_overseer_thread(args, account_queue, account_captchas,
                                   'and reached the %ds timeout.',
                                   account['username'], hold_time,
                                   args.manual_captcha_timeout)
-                        if args.hash_key:
-                            hash_key = key_scheduler.next()
 
                         t = Thread(target=captcha_solver_thread,
                                    name='captcha-solver-{}'.format(solverId),
                                    args=(args, account_queue, account_captchas,
-                                         hash_key, wh_queue))
+                                         wh_queue))
                         t.daemon = True
                         t.start()
 
@@ -105,7 +98,7 @@ def captcha_overseer_thread(args, account_queue, account_captchas,
         time.sleep(sleep_timer)
 
 
-def captcha_solver_thread(args, account_queue, account_captchas, hash_key,
+def captcha_solver_thread(args, account_queue, account_captchas,
                           wh_queue, token=None):
     status, account, captcha_url = account_captchas.popleft()
 
@@ -117,10 +110,6 @@ def captcha_solver_thread(args, account_queue, account_captchas, hash_key,
         api = FakePogoApi(args.mock)
     else:
         api = PGoApiWrapper(PGoApi())
-
-    if hash_key:
-        log.debug('Using key {} for solving this captcha.'.format(hash_key))
-        api.activate_hash_server(hash_key)
 
     proxy_url = False
     if args.proxy:

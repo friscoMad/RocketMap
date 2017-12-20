@@ -3,14 +3,33 @@
 
 import logging
 
+from datetime import datetime
 from pgoapi.utilities import f2i, get_cell_ids
 from pgoapi.hash_server import BadHashRequestException, HashingOfflineException
 
 log = logging.getLogger(__name__)
+_key_scheduler = None
 
 
 class AccountBannedException(Exception):
     pass
+
+
+def configure(key_scheduler):
+    global _key_scheduler
+    _key_scheduler = key_scheduler
+
+
+def call_req(req):
+    if _key_scheduler:
+        key = _key_scheduler.next()
+        log.debug('Using key {} for this scan.'.format(key))
+        req.state.auth_token = key
+    resp = req.call()
+
+    if _key_scheduler:
+        parse_hash_info(req, resp)
+    return resp
 
 
 def send_generic_request(req, account, settings=True, buddy=True, inbox=True):
@@ -32,7 +51,7 @@ def send_generic_request(req, account, settings=True, buddy=True, inbox=True):
         req.get_inbox(is_history=True)
 
     try:
-        resp = req.call(False)
+        resp = call_req(req)
     except HashingOfflineException:
         log.error('Hashing server is unreachable, it might be offline.')
         raise
@@ -59,6 +78,34 @@ def send_generic_request(req, account, settings=True, buddy=True, inbox=True):
 
     log.log(5, 'Response: \n%s', resp)
     return resp
+
+
+def parse_hash_info(req, resp):
+    # Update hashing key stats in the database based on the values
+    # reported back by the hashing server.
+    key = req.state.auth_token
+    key_instance = _key_scheduler.keys[key]
+    headers = resp['hash_headers']
+    key_instance['remaining'] = int(headers.get('X-RateRequestsRemaining', 0))
+    key_instance['maximum'] = int(headers.get('X-MaxRequestCount', 0))
+
+    usage = key_instance['maximum'] - key_instance['remaining']
+
+    if key_instance['peak'] < usage:
+        key_instance['peak'] = usage
+
+    if key_instance['expires'] is None:
+        expires = int(headers.get('X-AuthTokenExpiration', 0))
+
+        if expires is not None:
+            expires = datetime.utcfromtimestamp(expires)
+            key_instance['expires'] = expires
+
+    key_instance['last_updated'] = datetime.utcnow()
+
+    log.debug('Hash key %s has %s/%s RPM left.', key,
+              key_instance['remaining'],
+              key_instance['maximum'])
 
 
 def parse_remote_config(account, api_response):
