@@ -21,14 +21,14 @@ def configure(key_scheduler):
 
 
 def call_req(req):
+    key = None
     if _key_scheduler:
         key = _key_scheduler.next()
         log.debug('Using key {} for this scan.'.format(key))
-        req.state.auth_token = key
-    resp = req.call()
+    resp = req.call(hash_key=key)
 
     if _key_scheduler:
-        parse_hash_info(req, resp)
+        parse_hash_info(key, resp)
     return resp
 
 
@@ -80,10 +80,9 @@ def send_generic_request(req, account, settings=True, buddy=True, inbox=True):
     return resp
 
 
-def parse_hash_info(req, resp):
+def parse_hash_info(key, resp):
     # Update hashing key stats in the database based on the values
     # reported back by the hashing server.
-    key = req.state.auth_token
     key_instance = _key_scheduler.keys[key]
     headers = resp['hash_headers']
     key_instance['remaining'] = int(headers.get('X-RateRequestsRemaining', 0))
