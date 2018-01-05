@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import logging
-from datetime import datetime
 
 from pgoapi.hash_server import HashServer
 from pgoapi.utilities import get_cell_ids
