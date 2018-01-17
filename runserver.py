@@ -8,6 +8,7 @@ import time
 import re
 import ssl
 import requests
+import schedule
 
 from distutils.version import StrictVersion
 
@@ -18,7 +19,7 @@ from flask_cache_bust import init_cache_busting
 
 from pogom.app import Pogom
 from pogom.utils import (get_args, now, gmaps_reverse_geolocate,
-                         log_resource_usage_loop, get_debug_dump_link,
+                         log_resource_usage, get_debug_dump_link,
                          dynamic_loading_refresher, dynamic_rarity_refresher)
 from pogom.altitude import get_gmaps_altitude
 
@@ -458,6 +459,8 @@ def main():
         search_thread.daemon = True
         search_thread.start()
 
+    run_task_scheduler()
+
     if args.no_server:
         # This loop allows for ctrl-c interupts to work since flask won't be
         # holding the program open.
@@ -517,11 +520,7 @@ def set_log_and_verbosity(log):
 
     if args.verbose:
         log.setLevel(logging.DEBUG)
-
-        # Let's log some periodic resource usage stats.
-        t = Thread(target=log_resource_usage_loop, name='res-usage')
-        t.daemon = True
-        t.start()
+        schedule.every().minute.do(log_resource_usage, log.debug)
     else:
         log.setLevel(logging.INFO)
 
@@ -532,6 +531,7 @@ def set_log_and_verbosity(log):
     logging.getLogger('pgoapi.rpc_api').setLevel(logging.INFO)
     logging.getLogger('werkzeug').setLevel(logging.ERROR)
     logging.getLogger('pogom.apiRequests').setLevel(logging.INFO)
+    logging.getLogger('schedule').setLevel(logging.WARN)
 
     # This sneaky one calls log.warning() on every retry.
     urllib3_logger = logging.getLogger(requests.packages.urllib3.__package__)
@@ -552,6 +552,9 @@ def set_log_and_verbosity(log):
         logging.addLevelName(5, 'TRACE')
         logging.getLogger('pogom.apiRequests').setLevel(5)
 
+    if args.verbose >= 4:
+        logging.getLogger('schedule').setLevel(logging.DEBUG)
+
     # Web access logs.
     if args.access_logs:
         date = strftime('%Y%m%d_%H%M')
@@ -562,6 +565,19 @@ def set_log_and_verbosity(log):
         handler = logging.FileHandler(filename)
         logger.setLevel(logging.INFO)
         logger.addHandler(handler)
+
+
+def run_task_scheduler():
+    class ScheduleThread(Thread):
+        @classmethod
+        def run(cls):
+            while True:
+                schedule.run_pending()
+                time.sleep(1)
+
+    continuous_thread = ScheduleThread()
+    continuous_thread.daemon = True
+    continuous_thread.start()
 
 
 if __name__ == '__main__':
