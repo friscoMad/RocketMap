@@ -28,7 +28,6 @@ import requests
 import schedulers
 import terminalsize
 import timeit
-import threading
 import schedule
 
 from datetime import datetime
@@ -55,7 +54,7 @@ from .transform import jitter_location
 log = logging.getLogger(__name__)
 
 loginDelayLock = Lock()
-gym_cache_lock = threading.Lock()
+gym_cache_lock = Lock()
 
 
 # Thread to handle user input.

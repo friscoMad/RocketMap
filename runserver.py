@@ -30,6 +30,7 @@ from pogom.webhook import wh_updater
 
 from pogom.proxy import initialize_proxies
 from pogom.search import search_overseer_thread
+from pogom.tasks import init_task_scheduler
 from time import strftime
 
 
@@ -459,7 +460,7 @@ def main():
         search_thread.daemon = True
         search_thread.start()
 
-    run_task_scheduler()
+    init_task_scheduler(1)
 
     if args.no_server:
         # This loop allows for ctrl-c interupts to work since flask won't be
@@ -565,19 +566,6 @@ def set_log_and_verbosity(log):
         handler = logging.FileHandler(filename)
         logger.setLevel(logging.INFO)
         logger.addHandler(handler)
-
-
-def run_task_scheduler():
-    class ScheduleThread(Thread):
-        @classmethod
-        def run(cls):
-            while True:
-                schedule.run_pending()
-                time.sleep(1)
-
-    continuous_thread = ScheduleThread()
-    continuous_thread.daemon = True
-    continuous_thread.start()
 
 
 if __name__ == '__main__':
