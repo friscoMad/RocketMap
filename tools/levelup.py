@@ -48,7 +48,7 @@ def get_location_forts(api, account, location):
         for fort in cell.forts:
             # Only use stops.
             if fort.type == 1:
-                forts += cell.forts
+                forts.append(fort)
     if not forts:
         return (ErrorType.no_stops, None)
     return (None, forts)
